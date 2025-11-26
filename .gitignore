@@ -1,0 +1,25 @@
+# Extension build files
+*.crx
+*.pem
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Node modules (if you add any build tools)
+node_modules/
+
+# Distribution files (keep releases/ folder structure but ignore contents)
+releases/*.zip
+!releases/.gitkeep
+

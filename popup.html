@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentry Span Optimizer</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1 class="title">
+        <svg class="icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M10 0C4.48 0 0 4.48 0 10s4.48 10 10 10 10-4.48 10-10S15.52 0 10 0zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+        </svg>
+        Sentry Span Optimizer
+      </h1>
+    </header>
+
+    <div class="content">
+      <!-- Configuration Section -->
+      <section class="section">
+        <h2 class="section-title">Configuration</h2>
+        <div class="form-group">
+          <label for="date-range" class="label">Date Range</label>
+          <select id="date-range" class="select">
+            <option value="7">Last 7 Days</option>
+            <option value="30" selected>Last 30 Days</option>
+            <option value="90">Last 90 Days</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <p class="help-text" style="margin-bottom: var(--spacing-sm);">
+            Uses your browser session to authenticate with Sentry. Make sure you're logged into Sentry.
+          </p>
+          <button id="fetch-data-btn" class="btn btn-primary btn-block">
+            <span class="btn-content">
+              <span>Fetch Data</span>
+              <span id="fetch-spinner" class="spinner hidden"></span>
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Rules Section -->
+      <section class="section" id="rules-section" style="display: none;">
+        <div class="section-header">
+          <h2 class="section-title">Sampling Rules</h2>
+          <button id="add-rule-btn" class="btn btn-secondary btn-sm">+ Add Rule</button>
+        </div>
+        <div class="form-group">
+          <label for="global-rate" class="label">Global Default Rate</label>
+          <div class="slider-group">
+            <input 
+              type="range" 
+              id="global-rate" 
+              class="slider" 
+              min="0" 
+              max="100" 
+              value="100"
+            />
+            <span id="global-rate-value" class="slider-value">100%</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="expansion-factor" class="label">Expansion Factor</label>
+          <input 
+            type="number" 
+            id="expansion-factor" 
+            class="input" 
+            min="1" 
+            max="100" 
+            value="4"
+            step="0.1"
+          />
+          <p class="help-text">Multiplier for projected usage (e.g., 4x for 4x traffic growth)</p>
+        </div>
+        <div id="rules-container" class="rules-container"></div>
+        <div class="form-group">
+          <button id="calculate-btn" class="btn btn-primary btn-block" disabled>
+            Calculate Optimization
+          </button>
+        </div>
+      </section>
+
+      <!-- Results Section -->
+      <section class="section" id="results-section" style="display: none;">
+        <h2 class="section-title">Results</h2>
+        <div class="results-grid">
+          <div class="result-card">
+            <div class="result-label">Baseline Usage</div>
+            <div class="result-value" id="baseline-count">0</div>
+          </div>
+          <div class="result-card">
+            <div class="result-label">Optimized Usage</div>
+            <div class="result-value" id="optimized-count">0</div>
+          </div>
+          <div class="result-card result-card-highlight">
+            <div class="result-label">Cost Reduction</div>
+            <div class="result-value result-value-highlight" id="cost-reduction">0%</div>
+          </div>
+        </div>
+        <div class="breakdown-section">
+          <h3 class="breakdown-title">Breakdown by Rule</h3>
+          <div id="breakdown-container" class="breakdown-container"></div>
+        </div>
+      </section>
+
+      <!-- Error Section -->
+      <div id="error-message" class="error-message hidden"></div>
+    </div>
+  </div>
+
+  <script src="api.js"></script>
+  <script src="calculator.js"></script>
+  <script src="ui-utils.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
+

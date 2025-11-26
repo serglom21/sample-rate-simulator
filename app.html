@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentry Span Optimizer</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="header-content">
+        <h1 class="app-title">
+          <svg class="icon" width="24" height="24" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 0C4.48 0 0 4.48 0 10s4.48 10 10 10 10-4.48 10-10S15.52 0 10 0zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+          </svg>
+          Sentry Span Optimizer
+        </h1>
+        <p class="app-subtitle">Model cost and usage optimization by simulating different sampling rates</p>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <div class="content-wrapper">
+        <!-- Configuration Section -->
+        <section class="card">
+          <h2 class="card-title">Configuration</h2>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="date-range" class="label">Date Range</label>
+              <select id="date-range" class="select">
+                <option value="7">Last 7 Days</option>
+                <option value="30" selected>Last 30 Days</option>
+                <option value="90">Last 90 Days</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="org-slug" class="label">Organization Slug (Optional)</label>
+              <div class="input-group">
+                <input 
+                  type="text" 
+                  id="org-slug" 
+                  class="input" 
+                  placeholder="Auto-detected from open Sentry tab"
+                />
+                <button type="button" id="detect-org-btn" class="btn btn-secondary" title="Detect organization from open Sentry tabs">
+                  Detect
+                </button>
+              </div>
+              <p class="help-text">
+                Click "Detect" to auto-detect from any open Sentry tab, or enter manually.
+              </p>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="project-input" class="label">Project (Optional)</label>
+            <div style="position: relative;">
+              <input 
+                type="text" 
+                id="project-input" 
+                class="input" 
+                placeholder="Type to search projects or leave empty for all projects"
+                autocomplete="off"
+                list="project-datalist"
+              />
+              <datalist id="project-datalist">
+                <option value="">All Projects</option>
+              </datalist>
+            </div>
+            <p class="help-text">
+              Type to search and select a specific project to filter data, or leave empty to include all projects.
+            </p>
+          </div>
+          <div class="form-group">
+            <label class="label">Authentication</label>
+            <p class="help-text">
+              Uses your browser session to authenticate with Sentry. Make sure you're logged into Sentry.
+            </p>
+          </div>
+          <div class="form-actions">
+            <button id="fetch-data-btn" class="btn btn-primary btn-large">
+              <span class="btn-content">
+                <span>Fetch Data</span>
+                <span id="fetch-spinner" class="spinner hidden"></span>
+              </span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Rules Section -->
+        <section class="card" id="rules-section" style="display: none;">
+          <div class="card-header">
+            <h2 class="card-title">Sampling Rules</h2>
+            <button id="add-rule-btn" class="btn btn-secondary">+ Add Rule</button>
+          </div>
+          
+          <div class="rules-config">
+            <div class="form-group">
+              <label for="global-rate" class="label">Global Default Rate</label>
+              <div class="slider-container">
+                <input 
+                  type="range" 
+                  id="global-rate" 
+                  class="slider" 
+                  min="0" 
+                  max="100" 
+                  value="100"
+                />
+                <div class="slider-labels">
+                  <span>0%</span>
+                  <span id="global-rate-value" class="slider-value">100%</span>
+                  <span>100%</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label for="expansion-factor" class="label">Expansion Factor</label>
+              <input 
+                type="number" 
+                id="expansion-factor" 
+                class="input" 
+                min="1" 
+                max="100" 
+                value="4"
+                step="0.1"
+              />
+              <p class="help-text">Multiplier for projected usage (e.g., 4x for 4x traffic growth)</p>
+            </div>
+          </div>
+
+          <div id="rules-container" class="rules-container"></div>
+          
+          <div class="form-actions">
+            <button id="calculate-btn" class="btn btn-primary btn-large" disabled>
+              Calculate Optimization
+            </button>
+          </div>
+        </section>
+
+        <!-- Results Section -->
+        <section class="card" id="results-section" style="display: none;">
+          <h2 class="card-title">Optimization Results</h2>
+          
+          <div class="results-summary">
+            <div class="result-card">
+              <div class="result-label">Baseline Usage</div>
+              <div class="result-value" id="baseline-count">0</div>
+              <div class="result-description" id="baseline-period-desc">Current total for selected period</div>
+            </div>
+            <div class="result-card">
+              <div class="result-label">Optimized Usage</div>
+              <div class="result-value" id="optimized-count">0</div>
+              <div class="result-description" id="optimized-period-desc">After applying sampling rules</div>
+            </div>
+            <div class="result-card" id="monthly-baseline-card">
+              <div class="result-label">Monthly Baseline</div>
+              <div class="result-value" id="monthly-baseline">0</div>
+              <div class="result-description" id="monthly-baseline-desc">Projected monthly volume</div>
+            </div>
+            <div class="result-card" id="monthly-optimized-card">
+              <div class="result-label">Monthly Optimized</div>
+              <div class="result-value" id="monthly-optimized">0</div>
+              <div class="result-description" id="monthly-optimized-desc">Projected monthly volume</div>
+            </div>
+            <div class="result-card result-card-highlight">
+              <div class="result-label">Cost Reduction</div>
+              <div class="result-value result-value-highlight" id="cost-reduction">0%</div>
+              <div class="result-description">Estimated savings</div>
+            </div>
+          </div>
+
+          <div class="breakdown-section">
+            <div class="breakdown-header-section">
+              <h3 class="breakdown-title">Breakdown by Rule</h3>
+              <div class="breakdown-controls">
+                <input 
+                  type="text" 
+                  id="breakdown-search" 
+                  class="input" 
+                  placeholder="Search spans..."
+                  style="max-width: 300px;"
+                />
+              </div>
+            </div>
+            <div class="breakdown-table">
+              <div class="breakdown-header">
+                <div class="breakdown-col-label">Span Operation / Description</div>
+                <div class="breakdown-col-value">Optimized</div>
+                <div class="breakdown-col-value">Baseline</div>
+                <div class="breakdown-col-value">Rate</div>
+              </div>
+              <div id="breakdown-container" class="breakdown-body"></div>
+            </div>
+            <div class="breakdown-pagination" id="breakdown-pagination" style="display: none;">
+              <button id="prev-page-btn" class="btn btn-secondary btn-sm">Previous</button>
+              <span id="page-info" class="page-info"></span>
+              <button id="next-page-btn" class="btn btn-secondary btn-sm">Next</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Error Section -->
+        <div id="error-message" class="error-message hidden"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="api.js"></script>
+  <script src="calculator.js"></script>
+  <script src="ui-utils.js"></script>
+  <script src="rule-utils.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+

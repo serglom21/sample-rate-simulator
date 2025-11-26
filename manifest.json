@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Sentry Span Optimizer",
+  "version": "1.0.0",
+  "description": "Model cost and usage optimization by simulating different sampling rates on live Sentry data",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "cookies"
+  ],
+  "host_permissions": [
+    "*://*.sentry.io/*"
+  ],
+  "action": {
+    "default_title": "Open Sentry Span Optimizer"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["app.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
+
