@@ -121,8 +121,8 @@
                 id="expansion-factor" 
                 class="input" 
                 min="1" 
-                max="100" 
-                value="4"
+                max="100"
+                value="1"
                 step="0.1"
               />
               <p class="help-text">Multiplier for projected usage (e.g., 4x for 4x traffic growth)</p>
@@ -130,6 +130,22 @@
           </div>
 
           <div id="rules-container" class="rules-container"></div>
+          
+          <!-- Current Sample Rates Breakdown -->
+          <div class="breakdown-section" id="sample-rates-section" style="display: none;">
+            <div class="breakdown-header-section">
+              <h3 class="breakdown-title">Current Sample Rates</h3>
+            </div>
+            <div class="breakdown-table">
+              <div class="breakdown-header">
+                <div class="breakdown-col-label" id="sample-rates-label">Group</div>
+                <div class="breakdown-col-value">Sample Rate</div>
+                <div class="breakdown-col-value">Span Count</div>
+                <div class="breakdown-col-value">Percentage</div>
+              </div>
+              <div id="sample-rates-container" class="breakdown-body"></div>
+            </div>
+          </div>
           
           <div class="form-actions">
             <button id="calculate-btn" class="btn btn-primary btn-large" disabled>

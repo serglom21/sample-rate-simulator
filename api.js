@@ -194,3 +194,46 @@ async function getOrgSlugFromCurrentTab() {
   }
 }
 
+/**
+ * Fetch current sample rates breakdown from Sentry
+ * @param {string} orgSlug - Organization slug
+ * @param {number} days - Number of days to query
+ * @param {string} projectSlug - Optional project slug to filter by
+ * @param {string} projectId - Optional project ID to filter by
+ * @returns {Promise<Object>} - Object with sampleRates array and totalCount
+ */
+async function fetchSampleRates(orgSlug, days, projectSlug = null, projectId = null) {
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.runtime.sendMessage(
+        {
+          action: 'fetchSampleRates',
+          orgSlug: orgSlug,
+          days: days,
+          projectSlug: projectSlug,
+          projectId: projectId,
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          
+          if (!response) {
+            reject(new Error('No response from background script. Please reload the extension and try again.'));
+            return;
+          }
+          
+          if (response.success) {
+            resolve(response.data);
+          } else {
+            reject(new Error(response.error || 'Unknown error occurred'));
+          }
+        }
+      );
+    } catch (error) {
+      reject(new Error(`Failed to send message to background script: ${error.message}`));
+    }
+  });
+}
+

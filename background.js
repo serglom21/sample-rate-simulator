@@ -548,6 +548,176 @@ async function fetchSpanUsage(orgSlug, days, projectSlug = null, projectId = nul
   };
 }
 
+/**
+ * Fetch current sample rates breakdown from Sentry
+ * @param {string} orgSlug - Organization slug
+ * @param {number} days - Number of days to query
+ * @param {string} projectSlug - Optional project slug to filter by
+ * @param {string} projectId - Optional project ID to filter by
+ * @returns {Promise<Array>} - Array of sample rate breakdown objects
+ */
+async function fetchSampleRates(orgSlug, days, projectSlug = null, projectId = null) {
+  if (!orgSlug) {
+    throw new Error('Organization slug is required');
+  }
+
+  const statsPeriod = `${days}d`;
+  const endpoint = `https://us.sentry.io/api/0/organizations/${orgSlug}/events/`;
+  
+  // Get project ID if we have a slug
+  let projectIdToUse = projectId;
+  if (!projectIdToUse && projectSlug) {
+    try {
+      const projects = await fetchProjects(orgSlug);
+      const project = projects.find(p => p.slug === projectSlug);
+      if (project && project.id) {
+        projectIdToUse = String(project.id);
+      }
+    } catch (error) {
+      console.warn('Could not fetch projects to get ID:', error);
+    }
+  }
+
+  const params = new URLSearchParams();
+  
+  // Match Sentry UI's EXACT parameter order
+  // Order matters for some APIs, so we'll match it exactly
+  
+  // 1. cursor (first)
+  params.append('cursor', '');
+  
+  // 2. dataset
+  params.append('dataset', 'spans');
+  
+  // 3. disableAggregateExtrapolation
+  params.append('disableAggregateExtrapolation', '1');
+  
+  // 4. fields (order matters)
+  if (projectIdToUse) {
+    // Single project: group by span.op and client_sample_rate
+    console.log(`Fetching sample rates for single project: ${projectIdToUse}`);
+    params.append('field', 'span.op');
+    params.append('field', 'client_sample_rate');
+    params.append('field', 'count(span.duration)');
+  } else {
+    // All projects: group by project and client_sample_rate
+    // Match Sentry UI's exact field order
+    console.log('Fetching sample rates for all projects');
+    params.append('field', 'project');
+    params.append('field', 'client_sample_rate');
+    params.append('field', 'count(span.duration)');
+  }
+  
+  // 5. per_page
+  params.append('per_page', '50');
+  
+  // 6. project (after fields, before query)
+  if (projectIdToUse) {
+    params.append('project', projectIdToUse);
+  } else {
+    params.append('project', '-1'); // -1 means all projects
+  }
+  
+  // 7. query (empty)
+  params.append('query', '');
+  
+  // 8. referrer
+  params.append('referrer', 'api.explore.spans-aggregates-table');
+  
+  // 9. sampling
+  params.append('sampling', 'HIGHEST_ACCURACY');
+  
+  // 10. sort
+  params.append('sort', '-count_span_duration');
+  
+  // 11. statsPeriod (last)
+  params.append('statsPeriod', statsPeriod);
+  
+  const url = `${endpoint}?${params.toString()}`;
+  console.log('Fetching sample rates from:', url);
+  console.log('URL parameters:', Object.fromEntries(params));
+  
+  const cookieString = await getSentryCookies();
+  const headers = { 'Cookie': cookieString };
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: headers,
+    credentials: 'include',
+  });
+  
+  if (!response.ok) {
+    let errorText = '';
+    try {
+      errorText = await response.text();
+      console.error('Sample rates API error response:', errorText);
+    } catch (e) {
+      errorText = 'Unable to read error response';
+    }
+    
+    // For 500 errors, provide more helpful message
+    if (response.status === 500) {
+      console.error('500 Internal Server Error - This might be a Sentry API issue. URL:', url);
+      throw new Error(`Sentry API returned an internal error (500). This might be due to:\n- Large data volume\n- API rate limiting\n- Temporary Sentry service issue\n\nTry:\n- Selecting a shorter date range\n- Selecting a specific project instead of all projects\n- Waiting a few minutes and trying again`);
+    }
+    
+    throw new Error(`Failed to fetch sample rates: ${response.status} - ${errorText}`);
+  }
+  
+  const data = await response.json();
+  
+  if (!data.data || !Array.isArray(data.data)) {
+    console.warn('No sample rates data returned from API');
+    return {
+      sampleRates: [],
+      totalCount: 0
+    };
+  }
+  
+  // Process the data into a more usable format
+  const sampleRates = [];
+  let totalCount = 0;
+  
+  data.data.forEach(item => {
+    const count = parseInt(item['count(span.duration)'] || item['count()'] || 0, 10);
+    const sampleRate = item['client_sample_rate'];
+    
+    if (count > 0) {
+      let groupLabel;
+      if (projectIdToUse) {
+        // Single project: show span.op
+        const spanOp = item['span.op'] || '(unknown)';
+        groupLabel = spanOp;
+      } else {
+        // All projects: show project name
+        const projectName = item['project'] || '(unknown)';
+        groupLabel = projectName;
+      }
+      
+      sampleRates.push({
+        group: groupLabel,
+        sampleRate: sampleRate !== null && sampleRate !== undefined ? sampleRate : 'N/A',
+        count: count,
+      });
+      
+      totalCount += count;
+    }
+  });
+  
+  // Calculate percentages
+  sampleRates.forEach(item => {
+    item.percentage = totalCount > 0 ? ((item.count / totalCount) * 100).toFixed(2) : '0.00';
+  });
+  
+  // Sort by count descending
+  sampleRates.sort((a, b) => b.count - a.count);
+  
+  return {
+    sampleRates: sampleRates,
+    totalCount: totalCount
+  };
+}
+
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'fetchSpanUsage') {
@@ -571,6 +741,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'fetchProjects') {
     // Handle fetching projects
     fetchProjects(request.orgSlug)
+      .then(data => {
+        sendResponse({ success: true, data: data });
+      })
+      .catch(error => {
+        sendResponse({ success: false, error: error.message });
+      });
+    return true;
+  }
+  
+  if (request.action === 'fetchSampleRates') {
+    // Handle fetching sample rates
+    fetchSampleRates(request.orgSlug, request.days, request.projectSlug, request.projectId)
       .then(data => {
         sendResponse({ success: true, data: data });
       })

@@ -34,6 +34,9 @@ const prevPageBtn = document.getElementById('prev-page-btn');
 const nextPageBtn = document.getElementById('next-page-btn');
 const pageInfo = document.getElementById('page-info');
 const errorMessage = document.getElementById('error-message');
+const sampleRatesSection = document.getElementById('sample-rates-section');
+const sampleRatesContainer = document.getElementById('sample-rates-container');
+const sampleRatesLabel = document.getElementById('sample-rates-label');
 
 // Breakdown pagination state
 let breakdownData = [];
@@ -250,12 +253,142 @@ async function handleFetchData() {
     
     // Fetch span data using browser session cookies
     const spanData = await fetchSpanUsage(orgSlug, days, projectSlug);
-    handleSpanDataSuccess(spanData, projectSlug);
+    // Pass null explicitly if no project selected
+    handleSpanDataSuccess(spanData, projectSlug || null);
   } catch (error) {
     showError(errorMessage, error.message);
   } finally {
     setFetchLoadingState(fetchDataBtn, fetchSpinner, false);
   }
+}
+
+/**
+ * Fetch and display current sample rates
+ */
+async function fetchAndDisplaySampleRates(projectSlug) {
+  // Normalize projectSlug - convert empty string to null
+  const projectSlugToUse = projectSlug && projectSlug.trim() ? projectSlug.trim() : null;
+  
+  // Sample rates are only available for individual projects, not all projects
+  if (!projectSlugToUse) {
+    showSampleRatesMessage('Please select a specific project to view current sample rates. Sample rates breakdown is not available when viewing all projects.');
+    return;
+  }
+  
+  // Hide section initially
+  sampleRatesSection.style.display = 'none';
+  
+  try {
+    const days = parseInt(dateRangeSelect.value, 10);
+    let orgSlug = orgSlugInput.value.trim();
+    
+    if (!orgSlug) {
+      try {
+        orgSlug = await getOrgSlugFromCurrentTab();
+      } catch (error) {
+        console.warn('Could not get org slug for sample rates:', error);
+        return;
+      }
+    }
+    
+    // Get project ID if we have a slug
+    let projectId = null;
+    if (projectSlugToUse) {
+      const option = Array.from(projectDatalist.options).find(
+        opt => opt.getAttribute('data-slug') === projectSlugToUse
+      );
+      if (option) {
+        projectId = option.getAttribute('data-id');
+      }
+    }
+    
+    console.log('Fetching sample rates with:', { orgSlug, days, projectSlug: projectSlugToUse, projectId });
+    
+    // Add timeout to prevent hanging (30 seconds)
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Sample rates fetch timeout after 30s')), 30000)
+    );
+    
+    const result = await Promise.race([
+      fetchSampleRates(orgSlug, days, projectSlugToUse, projectId),
+      timeoutPromise
+    ]);
+    
+    console.log('Sample rates result:', result);
+    renderSampleRates(result, projectSlugToUse);
+  } catch (error) {
+    // Silently fail - sample rates are supplementary information
+    // The 500 error from Sentry API is likely due to query complexity/timeout
+    // Don't show error to user, just keep section hidden
+    console.warn('Sample rates fetch failed (non-critical):', error.message);
+    sampleRatesSection.style.display = 'none';
+  }
+}
+
+/**
+ * Show a message in the sample rates section instead of data
+ */
+function showSampleRatesMessage(message) {
+  sampleRatesContainer.innerHTML = '';
+  
+  const messageItem = document.createElement('div');
+  messageItem.className = 'breakdown-item';
+  messageItem.style.textAlign = 'center';
+  messageItem.style.padding = 'var(--spacing-xl)';
+  messageItem.style.color = 'var(--gray-500)';
+  messageItem.innerHTML = `
+    <div class="breakdown-col-label" style="grid-column: 1 / -1;">
+      ${message}
+    </div>
+  `;
+  
+  sampleRatesContainer.appendChild(messageItem);
+  sampleRatesSection.style.display = 'block';
+}
+
+/**
+ * Render sample rates breakdown
+ */
+function renderSampleRates(result, projectSlug) {
+  console.log('Rendering sample rates:', result, 'projectSlug:', projectSlug);
+  
+  if (!result || !result.sampleRates || result.sampleRates.length === 0) {
+    console.warn('No sample rates to display');
+    sampleRatesSection.style.display = 'none';
+    return;
+  }
+  
+  // Update label based on whether we have a project or not
+  if (projectSlug) {
+    sampleRatesLabel.textContent = 'Span Operation';
+  } else {
+    sampleRatesLabel.textContent = 'Project';
+  }
+  
+  console.log(`Rendering ${result.sampleRates.length} sample rate groups`);
+  
+  sampleRatesContainer.innerHTML = '';
+  
+  result.sampleRates.forEach(item => {
+    const breakdownItem = document.createElement('div');
+    breakdownItem.className = 'breakdown-item';
+    
+    const sampleRateDisplay = item.sampleRate === 'N/A' || item.sampleRate === null || item.sampleRate === undefined
+      ? 'N/A'
+      : `${(parseFloat(item.sampleRate) * 100).toFixed(1)}%`;
+    
+    breakdownItem.innerHTML = `
+      <div class="breakdown-col-label" title="${item.group}">${item.group}</div>
+      <div class="breakdown-col-value">${sampleRateDisplay}</div>
+      <div class="breakdown-col-value">${formatNumber(item.count)}</div>
+      <div class="breakdown-col-value">${item.percentage}%</div>
+    `;
+    
+    sampleRatesContainer.appendChild(breakdownItem);
+  });
+  
+  // Show the section
+  sampleRatesSection.style.display = 'block';
 }
 
 /**
@@ -284,6 +417,9 @@ function handleSpanDataSuccess(spanData, projectSlug) {
   // Reset rules
   rules = [];
   renderRules();
+  
+  // Fetch and display current sample rates (pass null if no project selected)
+  fetchAndDisplaySampleRates(projectSlug || null);
 }
 
 /**

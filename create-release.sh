@@ -37,3 +37,4 @@ echo "2. Open Chrome: chrome://extensions/ → Enable Developer mode → Load un
 echo "3. Select the extracted folder"
 echo ""
 
+

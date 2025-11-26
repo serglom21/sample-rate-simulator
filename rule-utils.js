@@ -98,3 +98,4 @@ function createAutocompleteDatalist(spanData, attribute, ruleId) {
   return datalist;
 }
 
+

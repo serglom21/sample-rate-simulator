@@ -41,3 +41,4 @@ Write-Host "2. Open Chrome: chrome://extensions/ → Enable Developer mode → L
 Write-Host "3. Select the extracted folder"
 Write-Host ""
 
+
