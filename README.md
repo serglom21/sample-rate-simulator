@@ -23,8 +23,8 @@ A Chrome/Firefox browser extension (Manifest V3) that helps Sentry customers mod
 
 1. **Clone or download this repository**:
    ```bash
-   git clone <repository-url>
-   cd sample-rate-extension
+   git clone https://github.com/serglom21/sample-rate-simulator.git
+   cd sample-rate-simulator
    ```
 
 2. **Install in Chrome**:
@@ -42,7 +42,7 @@ A Chrome/Firefox browser extension (Manifest V3) that helps Sentry customers mod
 ### Option 2: Install from Zip File (Easiest)
 
 1. **Download the latest release**:
-   - Download `sentry-span-optimizer.zip` from the [Releases](https://github.com/your-username/sample-rate-extension/releases) page
+   - Download `sentry-span-optimizer.zip` from the [Releases](https://github.com/serglom21/sample-rate-simulator/releases) page
    - Or create your own zip file using the script (see below)
 
 2. **Extract the zip file**:
